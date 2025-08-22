@@ -1,19 +1,37 @@
-const fs = require('fs');
-const axios = require('axios');
+const { cmd } = require("../command");
+const { getBuffer } = require("../lib/functions"); // make sure you have getBuffer implemented
+const axios = require("axios");
 
-module.exports = {
-  command: ['.send'],
-  description: 'ඡායාරූපයක් forward කරන්න',
-  handler: async ({ sock, m }) => {
-    const imageUrl = 'https://example.com/image.jpg'; // Replace with dynamic or static URL
-    const caption = '✅ SUCCESS\n\n📸 Powered by GESANDU-MD';
+cmd(
+  {
+    pattern: "send",
+    desc: "Send file/image with status messages",
+    category: "download",
+    filename: __filename,
+  },
+  async (robin, mek, m, { from, reply }) => {
+    try {
+      // 1️⃣ Send initial status
+      await robin.sendMessage(from, { text: "⚡ Download starting..." }, { quoted: mek });
 
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const buffer = Buffer.from(response.data, 'binary');
+      // 2️⃣ File URL
+      const fileUrl = "https://example.com/image.jpg"; // replace with your file/image URL
 
-    await sock.sendMessage(m.key.remoteJid, {
-      image: buffer,
-      caption: caption
-    }, { quoted: m });
+      // 3️⃣ Download file buffer
+      const buffer = await getBuffer(fileUrl); // or use axios to get arraybuffer
+
+      // 4️⃣ Send file as reply
+      await robin.sendMessage(from, {
+        image: buffer,
+        caption: "✅ Download complete!",
+      }, { quoted: mek });
+
+      // Optional: final status message (if separate)
+      // await robin.sendMessage(from, { text: "✅ Download completed successfully!" }, { quoted: mek });
+
+    } catch (err) {
+      console.error(err);
+      reply("❌ Download failed, try again later.");
+    }
   }
-};
+);
