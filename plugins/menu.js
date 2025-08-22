@@ -51,14 +51,11 @@ cmd(
 
       for (let i = 0; i < commands.length; i++) {
         if (commands[i].pattern && !commands[i].dontAddCommandList) {
-          menu[
-            commands[i].category
-          ] += `${config.PREFIX}${commands[i].pattern}\n`;
+          menu[commands[i].category] += `${config.PREFIX}${commands[i].pattern}\n`;
         }
       }
 
-      let madeMenu = `👋 *Hello  ${pushname}*
-
+      let madeMenu = `👋 *Hello ${pushname}*
 
 | *MAIN COMMANDS* |
     ▫️.alive
@@ -83,16 +80,16 @@ ${menu.group}
 | *SEARCH COMMANDS* |
 ${menu.search}
 
-
-🥶𝐌𝐚𝐝𝐞 𝐛𝐲 𝐒_𝐈_𝐇_𝐈_𝐋_𝐄_𝐋🥶
+🥶𝐌𝐚𝐝𝐞 𝐛𝐲 𝐌.𝐑.𝐆𝐞𝐬𝐚🥶
 
 > ROBIN MENU MSG
 `;
+
       await robin.sendMessage(
         from,
         {
           image: {
-            url: "https://raw.githubusercontent.com/Dark-Robin/Bot-Helper/refs/heads/main/autoimage/Bot%20robin%20menu.jpg",
+            url: "https://github.com/gesandu1111/ugjv/blob/main/Create%20a%20branding%20ba.png?raw=true", // oyage bot image URL
           },
           caption: madeMenu,
         },
