@@ -1,51 +1,36 @@
-const { cmd } = require("../command");
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
-cmd(
-  {
-    pattern: "send",
-    desc: "Upload image/video with caption to WhatsApp status",
-    category: "main",
-    filename: __filename,
-  },
-  async (
-    robin,
-    mek,
-    m,
-    { from, args, q, reply, quoted }
-  ) => {
-    try {
-      if (!q && !quoted) {
-        return reply("📌 Please reply to an image/video or give me text with .send");
-      }
+async function handleSendCommand(message, sock) {
+    const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
-      let caption = q ? q : "🚀 M.R.Gesa Bot Status"; // default caption
-
-      if (quoted && quoted.message.imageMessage) {
-        // If user replied to an image
-        let buffer = await mek.download();
-        await robin.sendMessage("status@broadcast", {
-          image: buffer,
-          caption: caption,
-        });
-        return reply("✅ Image uploaded to status!");
-      } else if (quoted && quoted.message.videoMessage) {
-        // If user replied to a video
-        let buffer = await mek.download();
-        await robin.sendMessage("status@broadcast", {
-          video: buffer,
-          caption: caption,
-        });
-        return reply("✅ Video uploaded to status!");
-      } else {
-        // Only text to status
-        await robin.sendMessage("status@broadcast", {
-          text: caption,
-        });
-        return reply("✅ Text status uploaded!");
-      }
-    } catch (e) {
-      console.log(e);
-      reply("❌ Error: " + e);
+    if (!quoted) {
+        return sock.sendMessage(message.key.remoteJid, { text: "📌 Reply to a status message to download it." });
     }
-  }
-);
+
+    const type = getContentType(quoted);
+    if (type !== 'imageMessage' && type !== 'videoMessage') {
+        return sock.sendMessage(message.key.remoteJid, { text: "⚠️ Only image or video statuses can be downloaded." });
+    }
+
+    try {
+        const buffer = await downloadMediaMessage(
+            { message: quoted },
+            'buffer',
+            {},
+            { logger: console }
+        );
+
+        const fileName = `status_${Date.now()}.${type === 'imageMessage' ? 'jpg' : 'mp4'}`;
+        fs.writeFileSync(fileName, buffer);
+
+        await sock.sendMessage(message.key.remoteJid, {
+            document: buffer,
+            mimetype: type === 'imageMessage' ? 'image/jpeg' : 'video/mp4',
+            fileName: fileName
+        });
+
+    } catch (err) {
+        console.error("Download error:", err);
+        await sock.sendMessage(message.key.remoteJid, { text: "❌ Failed to download status." });
+    }
+}
