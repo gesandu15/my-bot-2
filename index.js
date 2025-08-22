@@ -1,3 +1,4 @@
+// Required modules
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -34,9 +35,7 @@ if (!fs.existsSync(__dirname + "/auth_info_baileys/creds.json")) {
 }
 
 // 🌐 Express Server
-app.get("/", (req, res) => {
-  res.send("M.R.Gesa bot started ✅");
-});
+app.get("/", (req, res) => res.send("M.R.Gesa bot started ✅"));
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
 
 // 🤖 WhatsApp Bot Connection
@@ -62,7 +61,18 @@ async function connectToWA() {
       version,
     });
 
-    // Plugins loader
+    // 🔌 Plugins Loader (auto load all JS plugins)
+    const pluginsPath = path.join(__dirname, "plugins");
+    if (fs.existsSync(pluginsPath)) {
+      fs.readdirSync(pluginsPath).forEach((plugin) => {
+        if (path.extname(plugin).toLowerCase() === ".js") {
+          require(path.join(pluginsPath, plugin));
+        }
+      });
+      console.log("✅ All plugins loaded successfully.");
+    }
+
+    // Connection update
     robin.ev.on("connection.update", (update) => {
       const { connection, lastDisconnect } = update;
       if (connection === "close") {
@@ -71,18 +81,13 @@ async function connectToWA() {
           setTimeout(connectToWA, 5000);
         }
       } else if (connection === "open") {
-        console.log("Installing plugins...");
-        fs.readdirSync("./plugins/").forEach((plugin) => {
-          if (path.extname(plugin).toLowerCase() === ".js") {
-            require("./plugins/" + plugin);
-          }
-        });
-        console.log("M.R.Gesa installed successful ✅");
+        console.log("M.R.Gesa connected to WhatsApp ✅");
       }
     });
 
     robin.ev.on("creds.update", saveCreds);
 
+    // Message handler
     robin.ev.on("messages.upsert", async (mek) => {
       mek = mek.messages[0];
       if (!mek.message) return;
@@ -108,7 +113,7 @@ async function connectToWA() {
       const sender = mek.key.fromMe ? robin.user.id.split(":")[0] + "@s.whatsapp.net" : mek.key.participant || from;
       const senderNumber = sender.split("@")[0];
       const botNumber = robin.user.id.split(":")[0];
-      const pushname = mek.pushName || "Sin Nombre";
+      const pushname = mek.pushName || "Unknown";
       const isMe = botNumber.includes(senderNumber);
       const isOwner = ownerNumber.includes(senderNumber) || isMe;
       const botNumber2 = await jidNormalizedUser(robin.user.id);
@@ -118,36 +123,29 @@ async function connectToWA() {
       const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
       const reply = (teks) => robin.sendMessage(from, { text: teks }, { quoted: mek });
 
-      if (!isOwner && config.MODE === "private") return;
-      if (!isOwner && isGroup && config.MODE === "inbox") return;
-      if (!isOwner && !isGroup && config.MODE === "groups") return;
-
-      // Load commands from plugins
-      const events = require("./command");
+      // Command loader from plugins
       if (isCmd) {
-        const cmd = events.commands.find((cmd) => cmd.pattern === command) ||
-                    events.commands.find((cmd) => cmd.alias?.includes(command));
-        if (cmd) {
-          if (cmd.react) robin.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+        const events = require("./command");
+        const cmdObj = events.commands.find((cmd) => cmd.pattern === command) ||
+                       events.commands.find((cmd) => cmd.alias?.includes(command));
+        if (cmdObj) {
           try {
-            cmd.function(robin, mek, m, {
+            cmdObj.function(robin, mek, m, {
               from, body, isCmd, command, args, q, isGroup, sender,
               senderNumber, botNumber2, botNumber, pushname, isMe,
               isOwner, groupMetadata, groupAdmins, isBotAdmins, isAdmins, reply,
             });
           } catch (e) {
-            console.error("[PLUGIN ERROR] " + e);
+            console.error("[PLUGIN ERROR]", e);
           }
         }
       }
     });
 
   } catch (err) {
-    console.error("[WA CONNECT ERROR] ", err);
+    console.error("[WA CONNECT ERROR]", err);
     setTimeout(connectToWA, 5000);
   }
 }
 
-setTimeout(() => {
-  connectToWA();
-}, 4000);
+setTimeout(() => connectToWA(), 4000);
