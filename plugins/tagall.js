@@ -1,43 +1,41 @@
 const { cmd } = require("../command");
+const config = require("../config");
 
 cmd(
   {
     pattern: "tagall",
-    desc: "Tag all group members",
+    desc: "Tag all group members (Owner only, admin not required)",
     category: "group",
     filename: __filename,
   },
-  async (robin, mek, m, { from, isGroup, groupMetadata, isOwner, reply }) => {
+  async (robin, mek, m, { from, isGroup, reply }) => {
     try {
-      // Check if it's a group
       if (!isGroup) return reply("❌ මේ command එක group එකකට පමණයි.");
 
-      // Only owner can run
+      // Owner check
+      const senderNumber = mek.key.fromMe
+        ? robin.user.id.split(":")[0]
+        : mek.key.participant || mek.key.remoteJid;
+      const isOwner = Array.isArray(config.OWNER_NUM)
+        ? config.OWNER_NUM.includes(senderNumber.split("@")[0])
+        : senderNumber.split("@")[0] === config.OWNER_NUM;
+
       if (!isOwner) return reply("❌ මේ command එක owner පමණක් භාවිතා කරන්න පුළුවන්.");
 
-      // Get group participants
-      const participants = groupMetadata.participants;
-      if (!participants || participants.length === 0)
+      // Fetch group metadata dynamically
+      const groupMetadata = await robin.groupMetadata(from);
+      if (!groupMetadata || !groupMetadata.participants || groupMetadata.participants.length === 0)
         return reply("❌ Group එකේ members කිසිවක් නැහැ.");
 
-      // Prepare mentions list
-      const mentions = participants.map(p => p.id);
+      // Mentions list
+      const mentions = groupMetadata.participants.map(p => p.id);
 
-      // Prepare tag message
+      // Prepare text
       let text = "📣 ඔක්කොම members tag කරන්න\n\n";
-      mentions.forEach(id => {
-        text += `@${id.split("@")[0]} `;
-      });
+      mentions.forEach(id => { text += `@${id.split("@")[0]} `; });
 
-      // Send message tagging all
-      await robin.sendMessage(
-        from,
-        {
-          text,
-          mentions,
-        },
-        { quoted: mek }
-      );
+      // Send message with mentions (works even if bot is not admin)
+      await robin.sendMessage(from, { text, mentions }, { quoted: mek });
 
     } catch (e) {
       console.error("❌ Tag all failed:", e);
