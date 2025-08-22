@@ -11,6 +11,7 @@ const {
 const fs = require("fs");
 const P = require("pino");
 const express = require("express");
+const path = require("path");
 const app = express();
 const port = process.env.PORT || 8000;
 const config = require("./config");
@@ -61,6 +62,7 @@ async function connectToWA() {
       version,
     });
 
+    // Plugins loader
     robin.ev.on("connection.update", (update) => {
       const { connection, lastDisconnect } = update;
       if (connection === "close") {
@@ -69,53 +71,13 @@ async function connectToWA() {
           setTimeout(connectToWA, 5000);
         }
       } else if (connection === "open") {
-        console.log("Installing...");
-        const path = require("path");
+        console.log("Installing plugins...");
         fs.readdirSync("./plugins/").forEach((plugin) => {
           if (path.extname(plugin).toLowerCase() === ".js") {
             require("./plugins/" + plugin);
           }
         });
         console.log("M.R.Gesa installed successful ✅");
-        console.log("M.R.Gesa connected to WhatsApp ✅");
-
-        const up = `🤖 M.R.Gesa connected successful ✅`;
-        const up1 = `Hello Gesa, your bot is now active!`;
-        const imageURL = "https://github.com/gesandu1111/ugjv/blob/main/Create%20a%20branding%20ba.png?raw=true";
-
-        ownerNumber.forEach((num) => {
-          robin.sendMessage(num + "@s.whatsapp.net", {
-            image: { url: imageURL },
-            caption: up,
-          });
-        });
-
-        robin.sendMessage("94784525290@s.whatsapp.net", {
-          image: { url: imageURL },
-          caption: up1,
-        });
-
-        // 🔥 Sinhala Status Auto-Reaction
-        const statusList = [
-          "අද හවස හොඳටම වැඩ කළා!",
-          "මම දැන් කෝපි බොනවා ☕",
-          "අලුත් plugin එක deploy කළා!",
-          "මගේ bot එක connect වෙලා!",
-          "අද හරි busy day එකක්!",
-        ];
-        const EMOJI = "🔥";
-        const BRAND_TAG = "🔁 HASA ප්‍රතිචාරය:";
-        const REACT_DELAY_MS = 1500;
-
-        console.log("🔗 Bot එක connect වෙලා! Status list එකට 🔥 ප්‍රතිචාර දක්වමින්...");
-        (async () => {
-          for (const status of statusList) {
-            const reaction = `${BRAND_TAG} ${EMOJI} → "${status}"`;
-            console.log(reaction);
-            await new Promise((r) => setTimeout(r, REACT_DELAY_MS));
-          }
-          console.log("✅ සියලු status වලට 🔥 ප්‍රතිචාර දක්වා අවසන්.");
-        })();
       }
     });
 
@@ -160,6 +122,7 @@ async function connectToWA() {
       if (!isOwner && isGroup && config.MODE === "inbox") return;
       if (!isOwner && !isGroup && config.MODE === "groups") return;
 
+      // Load commands from plugins
       const events = require("./command");
       if (isCmd) {
         const cmd = events.commands.find((cmd) => cmd.pattern === command) ||
@@ -178,6 +141,7 @@ async function connectToWA() {
         }
       }
     });
+
   } catch (err) {
     console.error("[WA CONNECT ERROR] ", err);
     setTimeout(connectToWA, 5000);
