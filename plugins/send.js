@@ -1,31 +1,36 @@
 const { cmd } = require("../command");
 const { getBuffer } = require("../lib/functions");
 const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
 
 cmd(
   {
     pattern: "send",
-    desc: "Send sample file to user",
+    desc: "Send file automatically as reply",
     category: "download",
     filename: __filename,
   },
   async (robin, mek, m, { from, quoted, reply }) => {
     try {
-      // Send initial status
+      // Status message
       await robin.sendMessage(from, { text: "⚡ Preparing your file..." }, { quoted: mek });
 
-      // File path in project (local file)
-      const filePath = "./files/sample.pdf";
+      // File URL (replace with your actual file)
+      const fileUrl = "https://example.com/test-file.zip";
 
-      if (!fs.existsSync(filePath)) {
-        return reply("❌ File not found on server!");
-      }
+      // Download file buffer
+      const buffer = await getBuffer(fileUrl);
 
-      // Send the file
+      // Optional: save locally
+      const savePath = path.join(__dirname, "../files/test-file.zip");
+      fs.writeFileSync(savePath, buffer);
+
+      // Send file as reply
       await robin.sendMessage(from, {
-        document: fs.readFileSync(filePath),
-        fileName: "sample.pdf",
-        mimetype: "application/pdf",
+        document: buffer,
+        fileName: "test-file.zip",
+        mimetype: "application/zip",
       }, { quoted: mek });
 
       // Done message
@@ -33,7 +38,7 @@ cmd(
 
     } catch (err) {
       console.log(err);
-      reply("❌ Failed to send the file, try again later.");
+      reply("❌ Failed to send file. Try again later.");
     }
   }
 );
