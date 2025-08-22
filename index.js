@@ -22,25 +22,28 @@ const { File } = require("megajs");
 
 const ownerNumber = Array.isArray(config.OWNER_NUM) ? config.OWNER_NUM : [config.OWNER_NUM];
 
-// 🔐 Session Auth via Mega.nz
-if (!fs.existsSync(__dirname + "/auth_info_baileys/creds.json")) {
-  if (!config.SESSION_ID) return console.log("Please add your session to SESSION_ID env !!");
-  const sessdata = config.SESSION_ID;
-  const filer = File.fromURL(`https://mega.nz/file/${sessdata}`);
-  filer.download((err, data) => {
-    if (err) throw err;
-    fs.writeFileSync(__dirname + "/auth_info_baileys/creds.json", Buffer.from(data));
-    console.log("Session downloaded ✅");
-  });
-}
-
-// 🌐 Express Server
+// Express server
 app.get("/", (req, res) => res.send("M.R.Gesa bot started ✅"));
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
 
-// 🤖 WhatsApp Bot Connection
+// Session download if not exist
+async function downloadSession() {
+  if (!fs.existsSync(__dirname + "/auth_info_baileys/creds.json")) {
+    if (!config.SESSION_ID) return console.log("Please add your SESSION_ID in config!");
+    const filer = File.fromURL(`https://mega.nz/file/${config.SESSION_ID}`);
+    const data = await new Promise((resolve, reject) => {
+      filer.download((err, buffer) => (err ? reject(err) : resolve(buffer)));
+    });
+    fs.writeFileSync(__dirname + "/auth_info_baileys/creds.json", Buffer.from(data));
+    console.log("Session downloaded ✅");
+  }
+}
+
+// Main connect function
 async function connectToWA() {
   try {
+    await downloadSession();
+
     const connectDB = require("./lib/mongodb");
     connectDB();
 
@@ -48,20 +51,19 @@ async function connectToWA() {
     const dbConfig = await readEnv();
     const prefix = dbConfig.PREFIX || ".";
 
-    console.log("Connecting M.R.Gesa ❤️");
     const { state, saveCreds } = await useMultiFileAuthState(__dirname + "/auth_info_baileys/");
     const { version } = await fetchLatestBaileysVersion();
 
     const robin = makeWASocket({
       logger: P({ level: "silent" }),
-      printQRInTerminal: false,
+      printQRInTerminal: true, // temporarily true for QR scan if needed
       browser: Browsers.macOS("Firefox"),
       syncFullHistory: true,
       auth: state,
       version,
     });
 
-    // 🔌 Plugins Loader (auto load all JS plugins)
+    // Plugins loader
     const pluginsPath = path.join(__dirname, "plugins");
     if (fs.existsSync(pluginsPath)) {
       fs.readdirSync(pluginsPath).forEach((plugin) => {
@@ -72,13 +74,14 @@ async function connectToWA() {
       console.log("✅ All plugins loaded successfully.");
     }
 
-    // Connection update
     robin.ev.on("connection.update", (update) => {
       const { connection, lastDisconnect } = update;
       if (connection === "close") {
         if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) {
           console.log("Reconnecting in 5s...");
           setTimeout(connectToWA, 5000);
+        } else {
+          console.log("Logged out from WhatsApp");
         }
       } else if (connection === "open") {
         console.log("M.R.Gesa connected to WhatsApp ✅");
@@ -112,40 +115,34 @@ async function connectToWA() {
       const isGroup = from.endsWith("@g.us");
       const sender = mek.key.fromMe ? robin.user.id.split(":")[0] + "@s.whatsapp.net" : mek.key.participant || from;
       const senderNumber = sender.split("@")[0];
-      const botNumber = robin.user.id.split(":")[0];
-      const pushname = mek.pushName || "Unknown";
-      const isMe = botNumber.includes(senderNumber);
-      const isOwner = ownerNumber.includes(senderNumber) || isMe;
       const botNumber2 = await jidNormalizedUser(robin.user.id);
       const groupMetadata = isGroup ? await robin.groupMetadata(from).catch(() => {}) : "";
       const groupAdmins = isGroup ? await getGroupAdmins(groupMetadata.participants) : [];
-      const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
-      const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
-      const reply = (teks) => robin.sendMessage(from, { text: teks }, { quoted: mek });
+      const reply = (text) => robin.sendMessage(from, { text }, { quoted: mek });
+      const isOwner = ownerNumber.includes(senderNumber);
 
-      // Command loader from plugins
-      if (isCmd) {
-        const events = require("./command");
-        const cmdObj = events.commands.find((cmd) => cmd.pattern === command) ||
-                       events.commands.find((cmd) => cmd.alias?.includes(command));
-        if (cmdObj) {
-          try {
-            cmdObj.function(robin, mek, m, {
-              from, body, isCmd, command, args, q, isGroup, sender,
-              senderNumber, botNumber2, botNumber, pushname, isMe,
-              isOwner, groupMetadata, groupAdmins, isBotAdmins, isAdmins, reply,
-            });
-          } catch (e) {
-            console.error("[PLUGIN ERROR]", e);
-          }
+      if (!isCmd) return;
+
+      // Command loader
+      const events = require("./command");
+      const cmdObj = events.commands.find((c) => c.pattern === command) ||
+                     events.commands.find((c) => c.alias?.includes(command));
+      if (cmdObj) {
+        try {
+          cmdObj.function(robin, mek, m, {
+            from, body, isCmd, command, args, q, isGroup, sender,
+            senderNumber, botNumber2, pushname: mek.pushName || "Unknown", isOwner,
+            groupMetadata, groupAdmins, reply,
+          });
+        } catch (e) {
+          console.error("[PLUGIN ERROR]", e);
         }
       }
     });
-
   } catch (err) {
     console.error("[WA CONNECT ERROR]", err);
     setTimeout(connectToWA, 5000);
   }
 }
 
-setTimeout(() => connectToWA(), 4000);
+connectToWA();
