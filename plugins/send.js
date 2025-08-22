@@ -1,36 +1,30 @@
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { cmd } = require("../command");
+const { getBuffer } = require("../lib/functions");
+const fs = require("fs");
 
-async function handleSendCommand(message, sock) {
-    const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-
-    if (!quoted) {
-        return sock.sendMessage(message.key.remoteJid, { text: "📌 Reply to a status message to download it." });
-    }
-
-    const type = getContentType(quoted);
-    if (type !== 'imageMessage' && type !== 'videoMessage') {
-        return sock.sendMessage(message.key.remoteJid, { text: "⚠️ Only image or video statuses can be downloaded." });
-    }
-
+cmd(
+  {
+    pattern: "startas",
+    desc: "Download startas file and send status",
+    category: "download",
+    filename: __filename,
+  },
+  async (robin, mek, m, { from, quoted, reply }) => {
     try {
-        const buffer = await downloadMediaMessage(
-            { message: quoted },
-            'buffer',
-            {},
-            { logger: console }
-        );
+      // Send initial text status
+      await robin.sendMessage(from, { text: "⚡ Starting download..." }, { quoted: mek });
 
-        const fileName = `status_${Date.now()}.${type === 'imageMessage' ? 'jpg' : 'mp4'}`;
-        fs.writeFileSync(fileName, buffer);
+      // File URL
+      const fileUrl = "https://example.com/startas-file.zip"; // replace with actual file URL
 
-        await sock.sendMessage(message.key.remoteJid, {
-            document: buffer,
-            mimetype: type === 'imageMessage' ? 'image/jpeg' : 'video/mp4',
-            fileName: fileName
-        });
+      // Send file with caption
+      await robin.sendFileUrl(from, fileUrl, "📥 Here is your startas download ✅", mek);
 
+      // Optional: send done text
+      await robin.sendMessage(from, { text: "✅ Download complete!" }, { quoted: mek });
     } catch (err) {
-        console.error("Download error:", err);
-        await sock.sendMessage(message.key.remoteJid, { text: "❌ Failed to download status." });
+      console.log(err);
+      reply("❌ Download failed, try again later.");
     }
-}
+  }
+);
