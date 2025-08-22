@@ -4,27 +4,33 @@ const fs = require("fs");
 
 cmd(
   {
-    pattern: "startas",
-    desc: "Download startas file and send status",
+    pattern: "send", // change command name to `.send`
+    desc: "Send a predefined file to user",
     category: "download",
     filename: __filename,
   },
   async (robin, mek, m, { from, quoted, reply }) => {
     try {
-      // Send initial text status
-      await robin.sendMessage(from, { text: "⚡ Starting download..." }, { quoted: mek });
+      // Send initial status
+      await robin.sendMessage(from, { text: "⚡ Preparing file..." }, { quoted: mek });
 
-      // File URL
-      const fileUrl = "https://example.com/startas-file.zip"; // replace with actual file URL
+      // File path in local project
+      const filePath = "./files/sample.pdf"; // change to your file path
+      if (!fs.existsSync(filePath)) return reply("❌ File not found!");
 
-      // Send file with caption
-      await robin.sendFileUrl(from, fileUrl, "📥 Here is your startas download ✅", mek);
+      // Send the file
+      await robin.sendMessage(from, {
+        document: fs.readFileSync(filePath),
+        fileName: "sample.pdf", // rename as needed
+        mimetype: "application/pdf",
+      }, { quoted: mek });
 
-      // Optional: send done text
-      await robin.sendMessage(from, { text: "✅ Download complete!" }, { quoted: mek });
+      // Send completion status
+      await robin.sendMessage(from, { text: "✅ File sent successfully!" }, { quoted: mek });
+
     } catch (err) {
       console.log(err);
-      reply("❌ Download failed, try again later.");
+      reply("❌ Failed to send file, try again later.");
     }
   }
 );
