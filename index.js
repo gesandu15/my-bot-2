@@ -11,7 +11,6 @@ const {
 const fs = require("fs");
 const P = require("pino");
 const axios = require("axios");
-const qrcode = require("qrcode-terminal");
 const config = require("./config");
 const { sms, downloadMediaMessage } = require("./lib/msg");
 const { getBuffer, getGroupAdmins } = require("./lib/functions");
@@ -20,6 +19,7 @@ const app = express();
 const port = process.env.PORT || 8000;
 
 const ownerNumber = config.OWNER_NUM;
+const prefix = config.PREFIX || ".";
 
 //===================SESSION-AUTH============================
 const { File } = require("megajs");
@@ -59,7 +59,6 @@ async function connectToWA() {
 
     const { readEnv } = require("./lib/database");
     const envConfig = await readEnv();
-    const prefix = envConfig.PREFIX;
 
     console.log("Connecting M.R.Gesa...");
 
@@ -91,16 +90,13 @@ async function connectToWA() {
                     require("./plugins/" + plugin);
                 }
             });
-            console.log("M.R.Gesa installed successful ✅");
+            console.log("M.R.Gesa installed successfully ✅");
             console.log("M.R.Gesa connected to WhatsApp ✅");
 
             // Startup message to owner
-            const msgOwner = "M.R.Gesa connected successfully ✅";
-            const msgUser = "Hello, bot started successfully";
-
             robin.sendMessage(ownerNumber + "@s.whatsapp.net", {
                 image: { url: "https://github.com/gesandu1111/ugjv/blob/main/Create%20a%20branding%20ba.png?raw=true" },
-                caption: msgOwner,
+                caption: "M.R.Gesa connected successfully ✅",
             });
         }
     });
@@ -110,6 +106,7 @@ async function connectToWA() {
         mek = mek.messages[0];
         if(!mek.message) return;
 
+        // Normalize ephemeral messages
         mek.message = getContentType(mek.message) === "ephemeralMessage"
             ? mek.message.ephemeralMessage.message
             : mek.message;
@@ -128,14 +125,21 @@ async function connectToWA() {
 
         const reply = (text) => robin.sendMessage(from, { text }, { quoted: mek });
 
-        // Command handling
-        const body = type === "conversation" ? mek.message.conversation : "";
+        //===================BODY EXTRACTION============================
+        const body = (type === "conversation" && mek.message.conversation) ||
+                     (type === "extendedTextMessage" && mek.message.extendedTextMessage.text) ||
+                     (type === "imageMessage" && mek.message.imageMessage.caption) ||
+                     (type === "videoMessage" && mek.message.videoMessage.caption) ||
+                     "";
+
+        if(!body) return;
+
+        //===================COMMAND HANDLING============================
         if(body.startsWith(prefix)) {
             const command = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
             const args = body.slice(prefix.length).trim().split(" ").slice(1);
 
             if(command === "send") {
-                // Example: send PDF from files folder
                 const filePath = "./files/sample.pdf";
                 if(fs.existsSync(filePath)) {
                     await robin.sendMessage(from, {
@@ -151,7 +155,7 @@ async function connectToWA() {
 
             if(command === "restart") {
                 reply("Restarting bot...");
-                process.exit(0); // PM2 will restart
+                setTimeout(() => process.exit(0), 1000); // PM2 will restart
             }
         }
     });
