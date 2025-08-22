@@ -1,19 +1,39 @@
-const fs = require('fs');
-const axios = require('axios');
+const { cmd } = require("../command");
+const { getBuffer } = require("../lib/functions");
+const fs = require("fs");
 
-module.exports = {
-  command: ['.send'],
-  description: 'ඡායාරූපයක් forward කරන්න',
-  handler: async ({ sock, m }) => {
-    const imageUrl = 'https://example.com/image.jpg'; // Replace with dynamic or static URL
-    const caption = '✅ SUCCESS\n\n📸 Powered by GESANDU-MD';
+cmd(
+  {
+    pattern: "send",
+    desc: "Send sample file to user",
+    category: "download",
+    filename: __filename,
+  },
+  async (robin, mek, m, { from, quoted, reply }) => {
+    try {
+      // Send initial status
+      await robin.sendMessage(from, { text: "⚡ Preparing your file..." }, { quoted: mek });
 
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const buffer = Buffer.from(response.data, 'binary');
+      // File path in project (local file)
+      const filePath = "./files/sample.pdf";
 
-    await sock.sendMessage(m.key.remoteJid, {
-      image: buffer,
-      caption: caption
-    }, { quoted: m });
+      if (!fs.existsSync(filePath)) {
+        return reply("❌ File not found on server!");
+      }
+
+      // Send the file
+      await robin.sendMessage(from, {
+        document: fs.readFileSync(filePath),
+        fileName: "sample.pdf",
+        mimetype: "application/pdf",
+      }, { quoted: mek });
+
+      // Done message
+      await robin.sendMessage(from, { text: "✅ File sent successfully!" }, { quoted: mek });
+
+    } catch (err) {
+      console.log(err);
+      reply("❌ Failed to send the file, try again later.");
+    }
   }
-};
+);
